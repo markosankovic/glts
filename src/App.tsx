@@ -1,20 +1,25 @@
-import React, { useEffect } from 'react';
+import React, { Component } from 'react';
 import './App.css';
 import WebGLTimeDomain from './WebGLTimeDomain';
 
-function App() {
+class App extends Component {
 
-  useEffect(() => {
-    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    const webglTimeDomain = new WebGLTimeDomain(canvas);
-    console.log(webglTimeDomain);
-  });
+  webglTimeDomain?: WebGLTimeDomain;
 
-  return (
-    <div className="App">
-      <canvas id="canvas" width="1366" height="768"></canvas>
-    </div>
-  );
+  componentDidMount() {
+    const canvas = document.querySelector('#glCanvas');
+    if (canvas instanceof HTMLCanvasElement) {
+      this.webglTimeDomain = new WebGLTimeDomain(canvas);
+    }
+  }
+
+  render() {
+    return (
+      <div className="App">
+        <canvas id="glCanvas" width="1366" height="768"></canvas>
+      </div>
+    );
+  }
+
 }
-
 export default App;
