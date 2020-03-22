@@ -24,7 +24,7 @@ export default class WebGLTimeDomain {
   constructor(
     canvas: HTMLCanvasElement | OffscreenCanvas,
   ) {
-    const context = canvas.getContext('webgl2');
+    const context = canvas.getContext('webgl2', { antialias: true });
     if (context === null) {
       throw new Error('Unable to initialize WebGL. Your browser or machine may not support it.');
     }
