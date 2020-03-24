@@ -7,7 +7,8 @@ uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
 
 void main() {
-  gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+  vec4 aScaledVertexPosition = vec4((-1.0 + 2.0 * (aVertexPosition.x / 1000.0)), (-1.0 + 2.0 * ((aVertexPosition.y + 1000.0) / 2000.0)), 0, 1);
+  gl_Position = uProjectionMatrix * uModelViewMatrix * aScaledVertexPosition;
 }
 `;
 
@@ -20,6 +21,11 @@ void main() {
 export default class WebGLTimeDomain {
 
   gl: WebGLRenderingContext;
+
+  data = [
+    [0, 100, 50, 200, 100, 300, 150, 400, 300, 200, 500, 500, 700, 0, 1000, 200],
+    [0, -100, 50, -200, 100, -300, 150, -400, 300, -200, 500, -500, 700, 0, 1000, -200],
+  ];
 
   constructor(
     canvas: HTMLCanvasElement | OffscreenCanvas,
@@ -41,16 +47,13 @@ export default class WebGLTimeDomain {
         vertexPosition: this.gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
       },
       uniformLocations: {
-        projectionMatrix: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
-        modelViewMatrix: this.gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
+        projectionMatrix: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix')!,
+        modelViewMatrix: this.gl.getUniformLocation(shaderProgram, 'uModelViewMatrix')!,
       },
+      vertexCount: this.data[0].length / 2,
     };
 
-    // Here's where we call the routine that builds all the objects we'll be drawing.
-    const buffers = initBuffers(this.gl);
-
-    // Draw the scene
-    drawScene(this.gl, programInfo, buffers);
+    drawLines(this.gl, programInfo, this.data);
   }
 
 }
@@ -64,11 +67,7 @@ export function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, f
 
   // Create the shader program
 
-  const shaderProgram = gl.createProgram();
-
-  if (shaderProgram === null) {
-    throw new Error(`Failed to create shader program.`);
-  }
+  const shaderProgram = gl.createProgram() as WebGLProgram;
 
   gl.attachShader(shaderProgram, vertexShader);
   gl.attachShader(shaderProgram, fragmentShader);
@@ -89,11 +88,7 @@ export function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, f
 // compiles it.
 //
 export function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
-  const shader = gl.createShader(type);
-
-  if (shader === null) {
-    throw new Error(`Failed to create shader type: ${type}`);
-  }
+  const shader = gl.createShader(type) as WebGLShader;
 
   // Send the source to the shader object
 
@@ -113,66 +108,19 @@ export function loadShader(gl: WebGLRenderingContext, type: number, source: stri
   return shader;
 }
 
-export function initBuffers(gl: WebGLRenderingContext) {
-  // Create a buffer for the square's positions.
+function initLineBuffer(gl: WebGLRenderingContext, data: number[]) {
+  const buffer = gl.createBuffer()!;
 
-  const positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 
-  // Select the positionBuffer as the one to apply buffer operations to from here out.
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-
-  // Now create array of positions for the square.
-  const positions = [
-    -1.0, 1.0,
-    1.0, 1.0,
-    -1.0, -1.0,
-    1.0, -1.0,
-  ];
-
-  // Now pass the list of positions into WebGL to build the shape.
-  // We do this by creating a Float32Array from the JavaScript array, then use it to fill the current buffer.
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-
-  return {
-    position: positionBuffer,
-  };
+  return buffer;
 }
 
-export function drawScene(gl: WebGLRenderingContext, programInfo: any, buffers: any) {
-  gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
-  gl.clearDepth(1.0); // Clear everything
-  gl.enable(gl.DEPTH_TEST); // Enable depth testing
-  gl.depthFunc(gl.LEQUAL); // Near things obscure far things
-
-  // Clear the canvas before we start drawing on it.
-
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-  // Create a perspective matrix, a special matrix that is used to simulate the distortion of perspective in a camera.
-  // Our field of view is 45 degrees, with a width/height ratio that matches the display size of the canvas and
-  // we only want to see objects between 0.1 units and 100 units away from the camera.
-
-  const fieldOfView = 45 * Math.PI / 180; // in radians
-  const aspect = gl.canvas.width / gl.canvas.height;
-  const zNear = 0.1;
-  const zFar = 100.0;
+function drawLine(gl: WebGLRenderingContext, programInfo: any, buffer: WebGLBuffer) {
   const projectionMatrix = mat4.create();
-
-  // note: glmatrix.js always has the first argument as the destination to receive the result.
-  mat4.perspective(projectionMatrix, fieldOfView, aspect, zNear, zFar);
-
-  // Set the drawing position to the "identity" point, which is the center of the scene.
   const modelViewMatrix = mat4.create();
-
-  // Now move the drawing position a bit to where we want to start drawing the square.
-
-  mat4.translate(
-    modelViewMatrix, // destination matrix
-    modelViewMatrix, // matrix to translate
-    [-0.0, 0.0, -6.0], // amount to translate
-  );
 
   // Tell WebGL how to pull out the positions from the position buffer into the vertexPosition attribute.
   {
@@ -181,7 +129,7 @@ export function drawScene(gl: WebGLRenderingContext, programInfo: any, buffers: 
     const normalize = false; // don't normalize
     const stride = 0; // how many bytes to get from one set of values to the next; 0 = use type and numComponents above
     const offset = 0; // how many bytes inside the buffer to start from
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.position);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.vertexAttribPointer(
       programInfo.attribLocations.vertexPosition,
       numComponents,
@@ -204,7 +152,17 @@ export function drawScene(gl: WebGLRenderingContext, programInfo: any, buffers: 
 
   {
     const offset = 0;
-    const vertexCount = 4;
-    gl.drawArrays(gl.TRIANGLE_STRIP, offset, vertexCount);
+    const vertexCount = programInfo.vertexCount;
+    gl.drawArrays(gl.LINE_STRIP, offset, vertexCount);
   }
+}
+
+function drawLines(gl: WebGLRenderingContext, programInfo: any, data: number[][]) {
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+
+  data.forEach(lineData => {
+    const buffer = initLineBuffer(gl, lineData);
+    drawLine(gl, programInfo, buffer);
+  });
 }
