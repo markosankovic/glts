@@ -1,7 +1,8 @@
-import { mat4 } from 'gl-matrix';
+import { mat4, vec4 } from 'gl-matrix';
 
-export const vsSource = `
-attribute vec4 aVertexPosition;
+export const vsSource = `#version 300 es
+
+in vec4 aVertexPosition;
 
 uniform mat4 uModelViewMatrix;
 uniform mat4 uProjectionMatrix;
@@ -12,24 +13,35 @@ void main() {
 }
 `;
 
-export const fsSource = `
+export const fsSource = `#version 300 es
+precision mediump float;
+
+uniform vec4 uVertexColor;
+
+out vec4 fragColor;
+
 void main() {
-  gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+  fragColor = uVertexColor;
 }
 `;
+
+export class WebGLLine {
+
+  constructor(
+    public readonly color: vec4,
+    public readonly data: number[] = [],
+  ) { }
+
+}
 
 export default class WebGLTimeDomain {
 
   gl: WebGLRenderingContext;
 
-  data = [
-    [0, 100, 50, 200, 100, 300, 150, 400, 300, 200, 500, 500, 700, 0, 1000, 200],
-    [0, -100, 50, -200, 100, -300, 150, -400, 300, -200, 500, -500, 700, 0, 1000, -200],
-  ];
-
   constructor(
     canvas: HTMLCanvasElement | OffscreenCanvas,
   ) {
+
     const context = canvas.getContext('webgl2', { antialias: true });
     if (context === null) {
       throw new Error('Unable to initialize WebGL. Your browser or machine may not support it.');
@@ -47,15 +59,34 @@ export default class WebGLTimeDomain {
         vertexPosition: this.gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
       },
       uniformLocations: {
-        projectionMatrix: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix')!,
-        modelViewMatrix: this.gl.getUniformLocation(shaderProgram, 'uModelViewMatrix')!,
+        vertexPosition: this.gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
+        vertexColor: this.gl.getUniformLocation(shaderProgram, 'uVertexColor'),
+        projectionMatrix: this.gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
+        modelViewMatrix: this.gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
       },
-      vertexCount: this.data[0].length / 2,
     };
 
-    drawLines(this.gl, programInfo, this.data);
+    const lines = initLines();
+    drawLines(this.gl, programInfo, lines);
   }
 
+}
+
+function initLines(): WebGLLine[] {
+  const data0 = [...Array(2000).keys()];
+  for (let i = 0; i < 2000; i += 2) {
+    data0[i + 1] = Math.random() * 1600 - 800;
+  }
+
+  const data1 = [...Array(2000).keys()];
+  for (let i = 0; i < 2000; i += 2) {
+    data1[i + 1] = Math.random() * 1600 - 800;
+  }
+
+  const line0 = new WebGLLine(vec4.fromValues(0.2, 0.3, 0.4, 1.0), data0);
+  const line1 = new WebGLLine(vec4.fromValues(0.7, 0.1, 0.6, 1.0), data1);
+
+  return [line0, line1];
 }
 
 //
@@ -77,7 +108,9 @@ export function initShaderProgram(gl: WebGLRenderingContext, vsSource: string, f
   // If creating the shader program failed, error
 
   if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-    throw new Error(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
+    console.error(`Unable to initialize the shader program: ${gl.getProgramInfoLog(shaderProgram)}`);
+    gl.deleteProgram(shaderProgram);
+    throw new Error('Unable to initialize the shader program');
   }
 
   return shaderProgram;
@@ -101,24 +134,26 @@ export function loadShader(gl: WebGLRenderingContext, type: number, source: stri
   // See if it compiled successfully
 
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`);
     gl.deleteShader(shader);
-    throw new Error(`An error occurred compiling the shaders: ${gl.getShaderInfoLog(shader)}`);
+    throw new Error('An error occurred compiling the shaders!');
   }
 
   return shader;
 }
 
-function initLineBuffer(gl: WebGLRenderingContext, data: number[]) {
-  const buffer = gl.createBuffer()!;
+function drawLines(gl: WebGLRenderingContext, programInfo: any, lines: WebGLLine[]) {
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-
-  return buffer;
+  lines.forEach(line => {
+    drawLine(gl, programInfo, line);
+  });
 }
 
-function drawLine(gl: WebGLRenderingContext, programInfo: any, buffer: WebGLBuffer) {
+function drawLine(gl: WebGLRenderingContext, programInfo: any, line: WebGLLine) {
+  const buffer = initLineBuffer(gl, line.data);
+
   const projectionMatrix = mat4.create();
   const modelViewMatrix = mat4.create();
 
@@ -149,20 +184,21 @@ function drawLine(gl: WebGLRenderingContext, programInfo: any, buffer: WebGLBuff
 
   gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix);
   gl.uniformMatrix4fv(programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix);
+  gl.uniform4fv(programInfo.uniformLocations.vertexColor, line.color);
 
   {
     const offset = 0;
-    const vertexCount = programInfo.vertexCount;
+    const vertexCount = line.data.length / 2;
     gl.drawArrays(gl.LINE_STRIP, offset, vertexCount);
   }
 }
 
-function drawLines(gl: WebGLRenderingContext, programInfo: any, data: number[][]) {
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
+function initLineBuffer(gl: WebGLRenderingContext, data: number[]) {
+  const buffer = gl.createBuffer();
 
-  data.forEach(lineData => {
-    const buffer = initLineBuffer(gl, lineData);
-    drawLine(gl, programInfo, buffer);
-  });
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+  return buffer;
 }
