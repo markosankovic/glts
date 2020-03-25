@@ -1,6 +1,20 @@
 .App {
-  margin-top: 7px;
+  margin-top: 0.5rem;
+}
+
+.glCanvasContainer {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.actions {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actions button {
+  margin: 0 0.15rem;
 }
