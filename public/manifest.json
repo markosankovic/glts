@@ -1,6 +1,6 @@
 {
-  "short_name": "gltd",
-  "name": "Time-domain graph in WebGL",
+  "short_name": "glts",
+  "name": "WebGL Time Series",
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#000000",

@@ -1,15 +1,15 @@
 import React, { Component } from 'react';
 import './App.css';
-import WebGLTimeDomain from './WebGLTimeDomain';
+import WebGLTimeSeries from './WebGLTimeSeries';
 
 class App extends Component {
 
-  webglTimeDomain?: WebGLTimeDomain;
+  webglTimeDomain?: WebGLTimeSeries;
 
   componentDidMount() {
     const canvas = document.querySelector('#glCanvas');
     if (canvas instanceof HTMLCanvasElement) {
-      this.webglTimeDomain = new WebGLTimeDomain(canvas);
+      this.webglTimeDomain = new WebGLTimeSeries(canvas);
     }
   }
 

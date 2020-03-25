@@ -1,5 +1,7 @@
 import { mat4, vec4 } from 'gl-matrix';
 
+import WebGLLine from './WebGLLine';
+
 export const vsSource = `#version 300 es
 
 in vec4 aVertexPosition;
@@ -25,16 +27,7 @@ void main() {
 }
 `;
 
-export class WebGLLine {
-
-  constructor(
-    public readonly color: vec4,
-    public readonly data: number[] = [],
-  ) { }
-
-}
-
-export default class WebGLTimeDomain {
+export default class WebGLTimeSeries {
 
   gl: WebGLRenderingContext;
 
